@@ -1,6 +1,9 @@
 // Version 2012-02-20 (http://github.com/ITikhonov/captcha/tree/bbbaaa33ad3f94ce3f091badba51b44a231f12fd)
 // zlib/libpng license is at the end of this file
 #include "libcaptcha.h"
+#include <cstdio>
+#include <cstring>
+#include <stdlib.h>
 
 extern int8_t *lt[];
 
@@ -153,23 +156,36 @@ static void filter(unsigned char im[70*200]) {
 
 static const char *letters="abcdafahijklmnopqrstuvwxyz";
 
-void read_random(int f,void*aimm,int size){
-    unsigned char * aim=(unsigned char *)aimm;
-	++random_seed;
-    srand((unsigned)time(NULL)+random_seed);
-	for(int i=0;i<(time(NULL)%128);++i){
-		rand();
+template <class Type>
+bool read_random_unix(Type * aimm,int size){
+	FILE * fp =fopen("/dev/urandom", "r");
+	if(fp==NULL){
+		return false;
 	}
-    for(int j=0;j<size;j++){
-        aim[j]=rand();
-    }
+	fread(aimm,sizeof(Type),size,fp);
+	fclose(fp);
+	return true;
+}
+
+template <class Type>
+void read_random(Type * aimm,int size){
+	if(!read_random_unix(aimm,size)){
+		++random_seed;
+		srand((unsigned)time(NULL)+random_seed);
+		char * tmp=(char *)(aimm);
+		for(int i=0;i<(time(NULL)%128);++i){
+			rand();
+		}
+		for(int j=0;j<size*sizeof(Type);j++){
+			tmp[j]=(char)rand();
+		}
+	}
 }
 
 void captcha(unsigned char im[70*200], unsigned char l[6]) {
 	unsigned char swr[200];
 	uint8_t s1,s2;
-    int f=0;
-	read_random(f,l,5); read_random(f,swr,200); read_random(f,dr,sizeof(dr)); read_random(f,&s1,1); read_random(f,&s2,1);
+	read_random(l,5); read_random(swr,200); read_random(dr,sizeof(dr)); read_random(&s1,1); read_random(&s2,1);
 	memset(im,0xff,200*70); s1=s1&0x7f; s2=s2&0x3f; l[0]%=25; l[1]%=25; l[2]%=25; l[3]%=25; l[4]%=25; l[5]=0;
 	int p=30; p=letter(l[0],p,im,swr,s1,s2); p=letter(l[1],p,im,swr,s1,s2); p=letter(l[2],p,im,swr,s1,s2); p=letter(l[3],p,im,swr,s1,s2); letter(l[4],p,im,swr,s1,s2);
 	dots(im); blur(im); filter(im); line(im,swr,s1); 
